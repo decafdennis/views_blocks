@@ -1,0 +1,135 @@
+<?php
+// Developed by Dennis Stevense, naquah.net
+
+/**
+ * Implementation of hook_menu().
+ */
+function views_blocks_menu() {
+  $items = array();
+  
+  $items['admin/build/block/views_blocks'] = array(
+    'title' => 'Views blocks',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('views_blocks_settings'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'views_blocks.admin.inc',
+  );
+  
+  return $items;
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function views_blocks_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      $items = array();
+      $blocks = views_blocks_list();
+      foreach ($blocks as $delta => $block) {
+        for ($i = 0; $i < $block['count']; $i++) {
+          $items[$delta . '-' . $i] = array('info' => views_blocks_block_info($block, $i));
+        }
+      }
+      return $items;
+      
+    case 'configure':
+      $form['views_blocks_arguments'] = array(
+        '#type' => 'textfield',
+        '#title' => t('View arguments'),
+        '#default_value' => variable_get('views_blocks__' . $delta . '__arguments', ''),
+        '#description' => t('Enter the arguments that need to be fed into the view in path form, where %n is replaced with <code>arg(n)</code>. Example: 208/%2'),
+      );
+      return $form;
+      
+    case 'save':
+      variable_set('views_blocks__' . $delta . '__arguments', $edit['views_blocks_arguments']);
+      break;
+      
+    case 'view':
+      $block = views_blocks_delta_block($delta);
+      $view = $block['view'];
+      if ($view && $view->set_display($block['display_id'])) {
+        $arguments = variable_get('views_blocks__' . $delta . '__arguments', '');
+        $args = empty($arguments) ? array() : explode('/', $arguments);
+        foreach ($args as $index => $arg) {
+          if (strlen($arg) > 1 && substr($arg, 0, 1) == '%') {
+            $args[$index] = arg(substr($arg, 1));
+          }
+        }
+        return $view->execute_display(NULL, $args);
+      }
+      else {
+        return;
+      }
+  }
+}
+
+function views_blocks_block_info($block, $i) {
+  return t('@view_name: @display_title (!index)', array(
+    '@view_name' => $block['view']->name,
+    '@display_title' => $block['display']->display_title,
+    '!index' => $i + 1,
+  ));
+}
+
+function views_blocks_delta_block($delta) {
+  $first_dash = strpos($delta, '-');
+  $second_dash = strpos($delta, '-', $first_dash + 1);
+  
+  $view_name = substr($delta, 0, $first_dash);
+  if ($second_dash === FALSE) {
+    $display_id = substr($delta, $first_dash + 1);
+  }
+  else {
+    $display_id = substr($delta, $first_dash + 1, $second_dash - $first_dash - 1);
+    $index = substr($delta, $second_dash + 1);
+  }
+  
+  $view = views_get_view($view_name);
+  return array(
+    'view_name' => $view_name,
+    'view' => $view,
+    'display_id' => $display_id,
+    'display' => $view->display[$display_id],
+    'index' => $index,
+  );
+}
+
+function views_blocks_list() {
+  $list = array();
+  
+  // For each view
+  $views = views_get_all_views();
+  foreach ($views as $view) {
+    // Check whether it is disabled or has no displays
+    if (!empty($view->disabled) || empty($view->display)) {
+      continue;
+    }
+
+    $view_name = $view->name;
+    
+    // For each display in the view
+    foreach (array_keys($view->display) as $display_id) {
+      // Check whether it is a block display
+      if ($view->display[$display_id]->display_plugin != 'block') {
+        continue;
+      }
+
+      // Determine the key to the count setting
+      $count_key = 'views_blocks__' . $view_name . '__' . $display_id;
+      
+      $list[$view_name . '-' . $display_id] = array(
+        'view_name' => $view_name,
+        'view' => $view,
+        'display_id' => $display_id,
+        'display' => $view->display[$display_id],
+        'count_key' => $count_key,
+        'count' => variable_get($count_key, 0),
+      );
+    }
+  }
+  
+  return $list;
+}

@@ -1,0 +1,8 @@
+; Developed by Dennis Stevense, naquah.net
+name = Views blocks
+description = Allows you to use multiple blocks of the same view, but with different arguments.
+package = Views
+dependencies[] = views
+
+core = 6.x
+version = 6.x-1.x-dev
