@@ -41,10 +41,17 @@ function views_blocks_block($op = 'list', $delta = 0, $edit = array()) {
         '#default_value' => variable_get('views_blocks__' . $delta . '__arguments', ''),
         '#description' => t('Enter the arguments that need to be fed into the view in path form, where %n is replaced with <code>arg(n)</code>. Example: 208/%2'),
       );
+      $form['views_blocks_limit'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Items to display'),
+        '#default_value' => variable_get('views_blocks__' . $delta . '__limit', ''),
+        '#description' => t('Leave empty to use the value configured in the view/display.'),
+      );
       return $form;
       
     case 'save':
       variable_set('views_blocks__' . $delta . '__arguments', $edit['views_blocks_arguments']);
+      variable_set('views_blocks__' . $delta . '__limit', $edit['views_blocks_limit']);
       break;
       
     case 'view':
@@ -58,6 +65,16 @@ function views_blocks_block($op = 'list', $delta = 0, $edit = array()) {
             $args[$index] = arg(substr($arg, 1));
           }
         }
+        
+        $limit = (int)variable_get('views_blocks__' . $delta . '__limit', NULL);
+        if ($limit != 0) {
+          // Would like to do...
+          $view->set_items_per_page($limit);
+
+          // ...but have to do this, bleh. (See #698270.)
+          $view->display_handler->set_option('items_per_page', $limit);
+        }
+        
         return $view->execute_display(NULL, $args);
       }
       else {
